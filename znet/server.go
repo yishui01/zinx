@@ -5,6 +5,7 @@ import (
 	"github.com/pkg/errors"
 	"net"
 	"time"
+	"zinx/utils"
 	"zinx/ziface"
 )
 
@@ -51,6 +52,7 @@ func CallBackToClient(conn *net.TCPConn, data []byte, cnt int) error {
 //开启网络服务器
 func (s *Server) Start() {
 	fmt.Printf("[START] Server listener at IP: %s, Port %d, is starting\n", s.IP, s.Port)
+	fmt.Printf("[Zinx] Version: %s, MaxConn: %d, MaxPacketSize: %d\n", utils.G_Obj.Version, utils.G_Obj.MaxConn, utils.G_Obj.MaxPacketSize)
 
 	//开启一个go去做服务端Listener业务
 	go func() {
@@ -123,12 +125,27 @@ func (s *Server) AddRouter(router ziface.IRouter) {
 }
 
 func NewServer(name string) ziface.IServer {
-	s := &Server{
-		Name:      name,
-		IPVersion: "tcp4",
-		IP:        "0.0.0.0",
-		Port:      7777,
-		Router:    nil,
+	//先初始化全局配置文件
+	err := utils.G_Obj.Reload()
+	var s *Server
+	if err != nil {
+		fmt.Printf("采用默认Zinx配置")
+		s = &Server{
+			Name:      "默认Zinx Server",
+			IPVersion: "tcp4",
+			IP:        "127.0.0.1",
+			Port:      7777,
+			Router:    nil,
+		}
+	} else {
+		s = &Server{
+			Name:      utils.G_Obj.Name,
+			IPVersion: "tcp4",
+			IP:        utils.G_Obj.Host,
+			Port:      utils.G_Obj.TcpPort,
+			Router:    nil,
+		}
 	}
+
 	return s
 }

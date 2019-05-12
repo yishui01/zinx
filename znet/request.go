@@ -6,7 +6,7 @@ import (
 
 type Request struct {
 	conn ziface.IConnection //已经和客户端建立好的连接
-	data []byte
+	msg  ziface.IMessage
 }
 
 //获取请求连接信息
@@ -16,5 +16,10 @@ func (r *Request) GetConnection() ziface.IConnection {
 
 //获取请求消息的数据
 func (r *Request) GetData() []byte {
-	return r.data
+	return r.msg.GetData()
+}
+
+//获取请求的消息的ID
+func (r *Request) GetMsgID() uint32 {
+	return r.msg.GetMsgId()
 }

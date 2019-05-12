@@ -2,6 +2,8 @@ package znet
 
 import (
 	"fmt"
+	"github.com/pkg/errors"
+	"io"
 	"net"
 	"zinx/ziface"
 )
@@ -90,18 +92,37 @@ func (c *Connection) StartReader() {
 	defer c.Stop()
 
 	for {
-		//读取我们最大的数据到buff中
-		buf := make([]byte, 512)
-		_, err := c.Conn.Read(buf)
-		if err != nil {
-			fmt.Println("receive buff is err:", err)
-			c.ExitBuffChan <- true
-			continue
+		//创建解包对象
+		dp := NewDataPack()
+
+		//读取客户端的Msg head
+		headData := make([]byte, dp.GetHeadLen())
+		if _, err := io.ReadFull(c.GetTCPConnection(), headData); err != nil {
+			fmt.Println("read msg head error ", err)
+			return
 		}
+
+		//拆包，得到msgid 和 datalen 放在msg中
+		msg, err := dp.Unpack(headData)
+		if err != nil {
+			fmt.Println("unpack head error", err)
+			return
+		}
+
+		//根据 dataLen 读取 data，放在msg.Data中
+		var data []byte
+		if msg.GetDataLen() > 0 {
+			data = make([]byte, msg.GetDataLen())
+			if _, err := io.ReadFull(c.GetTCPConnection(), data); err != nil {
+				fmt.Println("read msg data error ", err)
+				return
+			}
+		}
+		msg.SetData(data)
 		//得到当前客户端请求的Request数据
 		req := Request{
 			conn: c,
-			data: buf,
+			msg:  msg,
 		}
 		//从路由Routers 中找到注册绑定的Conn对应的Handle
 		go func(request ziface.IRequest) {
@@ -112,4 +133,25 @@ func (c *Connection) StartReader() {
 		}(&req)
 
 	}
+}
+
+//将消息封包
+func (c *Connection) SendMsg(msgId uint32, data []byte) error {
+	if c.isClosed == true {
+		return errors.New("Connection closed when send msg")
+	}
+	dp := NewDataPack()
+	msg, err := dp.Pack(NewMsg(msgId, data))
+	if err != nil {
+		fmt.Println("Pack error msg id = ", msgId)
+		return err
+	}
+	//发送给客户端
+	if _, err := c.Conn.Write(msg); err != nil {
+		fmt.Println("Write msg id", msgId, "error")
+		c.ExitBuffChan <- true
+		return errors.New("conn Write error")
+	}
+
+	return nil
 }
