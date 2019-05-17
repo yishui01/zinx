@@ -12,14 +12,27 @@ import (
  */
 
 type GlobalObj struct {
+	/**
+		 Server
+	 */
 	TcpServer ziface.IServer //当前Zinx的全局Server对象
 	Host      string         //当前服务器主机IP
 	TcpPort   int            //当前服务器主机监听端口号
 	Name      string         //当前服务器名称
-	Version   string         //当前Zinx版本号
 
-	MaxPacketSize uint32 //读取数据包的最大值
-	MaxConn       int    //当前服务器主机允许的最大连接个数
+	/**
+		 Zinx
+	 */
+	Version          string //当前Zinx版本号
+	MaxPacketSize    uint32 //读取数据包的最大值
+	MaxConn          int    //当前服务器主机允许的最大连接个数
+	WorkerPoolSize   uint32 //业务工作Worker池数量
+	MaxWorkerTaskLen uint32 //业务工作Worker对应负责的任务队列最大任务存储数量
+
+	/**
+		config file path
+	 */
+	ConfigFilePath string
 }
 
 var G_Obj *GlobalObj
@@ -44,12 +57,15 @@ func (g *GlobalObj) Reload() error {
 
 func init() {
 	G_Obj = &GlobalObj{
-		Name:          "Zinx App Server",
-		Version:       "V0.4",
-		TcpPort:       7777,
-		Host:          "0.0.0.0",
-		MaxConn:       12000,
-		MaxPacketSize: 4096,
+		Name:             "Zinx App Server",
+		Version:          "V0.4",
+		TcpPort:          7777,
+		Host:             "0.0.0.0",
+		MaxConn:          12000,
+		MaxPacketSize:    4096,
+		ConfigFilePath:   "conf/zinx.json",
+		WorkerPoolSize:   10,
+		MaxWorkerTaskLen: 1024,
 	}
 
 	//加载用户自定义的配置文件，覆盖默认配置

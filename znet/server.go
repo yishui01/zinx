@@ -56,6 +56,8 @@ func (s *Server) Start() {
 
 	//开启一个go去做服务端Listener业务
 	go func() {
+		//0 启动worker工作池机制
+		s.msgHandle.StartWorkerPool()
 		//1、获取一个TCP的Addr
 		addr, err := net.ResolveTCPAddr(s.IPVersion, fmt.Sprintf("%s:%d", s.IP, s.Port))
 		if err != nil {
@@ -90,6 +92,7 @@ func (s *Server) Start() {
 
 			//3.3 TODO Server.Start() 处理该新连接请求的 业务 方法， 此时应该有handler 和 conn是绑定的
 			dealConn := NewConnection(conn, cid, s.msgHandle)
+			//dealConn = dealConn
 			cid++
 
 			//3.4 启动当前连接的处理业务
