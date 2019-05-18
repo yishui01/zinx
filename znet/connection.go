@@ -5,6 +5,7 @@ import (
 	"github.com/pkg/errors"
 	"io"
 	"net"
+	"sync"
 	"zinx/utils"
 	"zinx/ziface"
 )
@@ -29,6 +30,13 @@ type Connection struct {
 
 	//有缓冲管道，用于读、写两个goroutine之间的消息通信
 	msgBuffChan chan []byte
+
+	// ================================
+	//连接属性
+	property map[string]interface{}
+	//保护链接属性修改的锁
+	propertyLock sync.RWMutex
+	// ================================
 }
 
 //创建连接的方法
@@ -42,6 +50,7 @@ func NewConnection(server ziface.IServer, conn *net.TCPConn, connID uint32, hand
 		ExitBuffChan: make(chan bool, 1),
 		msgChan:      make(chan []byte),
 		msgBuffChan:  make(chan []byte, utils.G_Obj.MaxMsgChanLen),
+		property:     make(map[string]interface{}), //对连接属性map初始化
 	}
 
 	//将新创建的Conn添加到连接管理中
@@ -165,6 +174,36 @@ func (c *Connection) StartReader() {
 	}
 }
 
+func (c *Connection) StartWriter() {
+	fmt.Println("[Writer Goroutine is running]")
+	defer fmt.Println(c.RemoteAddr().String(), " conn Writer exit!")
+
+	for {
+		select {
+		case data := <-c.msgChan:
+			//有数据要写给客户端
+			if _, err := c.Conn.Write(data); err != nil {
+				fmt.Println("Send Data error:", err, "Conn Writer exit")
+				return
+			}
+		case data, ok := <-c.msgBuffChan:
+			if ok {
+				//有数据要写给客户端
+				if _, err := c.Conn.Write(data); err != nil {
+					fmt.Println("Send Buff 	Data error :", err, "Conn Write exit")
+					return
+				}
+			} else {
+				fmt.Println("msgBuffChan is Closed")
+				break
+			}
+		case <-c.ExitBuffChan:
+			//Conn已关闭
+			return
+		}
+	}
+}
+
 //将消息封包
 func (c *Connection) SendMsg(msgId uint32, data []byte) error {
 	if c.isClosed == true {
@@ -200,32 +239,30 @@ func (c *Connection) SendBuffMsg(msgId uint32, data []byte) error {
 	return nil
 }
 
-func (c *Connection) StartWriter() {
-	fmt.Println("[Writer Goroutine is running]")
-	defer fmt.Println(c.RemoteAddr().String(), " conn Writer exit!")
+//设置连接属性
+func (c *Connection) SetProperty(key string, value interface{}) {
+	c.propertyLock.Lock()
+	defer c.propertyLock.Unlock()
 
-	for {
-		select {
-		case data := <-c.msgChan:
-			//有数据要写给客户端
-			if _, err := c.Conn.Write(data); err != nil {
-				fmt.Println("Send Data error:", err, "Conn Writer exit")
-				return
-			}
-		case data, ok := <-c.msgBuffChan:
-			if ok {
-				//有数据要写给客户端
-				if _, err := c.Conn.Write(data); err != nil {
-					fmt.Println("Send Buff 	Data error :", err, "Conn Write exit")
-					return
-				}
-			} else {
-				fmt.Println("msgBuffChan is Closed")
-				break
-			}
-		case <-c.ExitBuffChan:
-			//Conn已关闭
-			return
-		}
+	c.property[key] = value
+}
+
+//获取连接属性
+func (c *Connection) GetProperty(key string) (interface{}, error) {
+	c.propertyLock.RLock()
+	defer c.propertyLock.RUnlock()
+
+	if value, ok := c.property[key]; ok {
+		return value, nil
+	} else {
+		return nil, errors.New("no property found")
 	}
+}
+
+//移除连接属性
+func (c *Connection) RemoveProperty(key string) {
+	c.propertyLock.Lock()
+	defer c.propertyLock.Unlock()
+
+	delete(c.property, key)
 }
