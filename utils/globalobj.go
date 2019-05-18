@@ -28,7 +28,7 @@ type GlobalObj struct {
 	MaxConn          int    //当前服务器主机允许的最大连接个数
 	WorkerPoolSize   uint32 //业务工作Worker池数量
 	MaxWorkerTaskLen uint32 //业务工作Worker对应负责的任务队列最大任务存储数量
-
+	MaxMsgChanLen    uint32
 	/**
 		config file path
 	 */
@@ -66,6 +66,7 @@ func init() {
 		ConfigFilePath:   "conf/zinx.json",
 		WorkerPoolSize:   10,
 		MaxWorkerTaskLen: 1024,
+		MaxMsgChanLen:    1024, //goroutine之间通过有缓冲管道通信时管道的最大长度
 	}
 
 	//加载用户自定义的配置文件，覆盖默认配置
